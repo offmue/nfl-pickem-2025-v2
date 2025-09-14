@@ -587,34 +587,35 @@ async function loadMatchesForWeek(week) {
                 
                 // Determine team status classes and titles
                 const getTeamStatusInfo = (team, teamUsage, teamWinnerEliminated, teamLoserEliminated, teamUsedAsLoser, isOpposingTeam = false) => {
-                    // Check if team is eliminated as winner (can't be picked as winner)
-                    if (teamWinnerEliminated && !isOpposingTeam) {
-                        return { class: 'eliminated', title: 'Dieses Team kann nicht mehr als Sieger gewählt werden (bereits 2x als Sieger verwendet)', disabled: true };
-                    }
-                    // Check if team is eliminated as loser (can't be picked as loser, i.e., opposing team can't be picked)
-                    if (teamLoserEliminated && isOpposingTeam) {
+                    // CORRECT LOGIC: Check if this team would be the LOSER and is loser-eliminated
+                    if (isOpposingTeam && teamLoserEliminated) {
                         return { class: 'eliminated', title: 'Dieses Team kann nicht mehr als Verlierer gewählt werden (bereits 1x als Verlierer verwendet)', disabled: true };
                     }
-                    if (teamUsage && teamUsage.usage_count >= 2) {
+                    
+                    // CORRECT LOGIC: Check if this team would be the WINNER and is winner-eliminated (2x usage)
+                    if (!isOpposingTeam && teamWinnerEliminated) {
+                        return { class: 'eliminated', title: 'Dieses Team kann nicht mehr als Sieger gewählt werden (bereits 2x als Sieger verwendet)', disabled: true };
+                    }
+                    
+                    // Check usage count for winners (2x max)
+                    if (!isOpposingTeam && teamUsage && teamUsage.usage_count >= 2) {
                         return { class: 'max-used', title: 'Dieses Team wurde bereits 2x als Gewinner gewählt (Maximum erreicht)', disabled: true };
                     }
-                    // NEW RULE: If this team would be the loser (opposing team) and has been used as loser before
-                    if (isOpposingTeam && teamUsedAsLoser) {
-                        return { class: 'used-as-loser', title: 'Dieses Team wurde bereits als Verlierer getippt und kann nicht mehr als Verlierer gewählt werden', disabled: true };
-                    }
-                    // FIXED: Only show usage count for completed games
+                    
+                    // Show usage count for completed games
                     if (match.is_completed && teamUsage && teamUsage.usage_count === 1) {
                         return { class: 'used-once', title: 'Dieses Team wurde bereits 1x als Gewinner gewählt', disabled: false };
                     }
+                    
                     return { class: '', title: '', disabled: false };
                 };
                 
-                // For away team selection, home team would be the loser
-                const awayTeamStatus = getTeamStatusInfo(match.away_team, awayTeamUsage, awayTeamWinnerEliminated, awayTeamLoserEliminated, awayTeamUsedAsLoser);
+                // For away team selection (away team = WINNER, home team = LOSER)
+                const awayTeamStatus = getTeamStatusInfo(match.away_team, awayTeamUsage, awayTeamWinnerEliminated, awayTeamLoserEliminated, awayTeamUsedAsLoser, false);
                 const awayTeamOpposingStatus = getTeamStatusInfo(match.home_team, homeTeamUsage, homeTeamWinnerEliminated, homeTeamLoserEliminated, homeTeamUsedAsLoser, true);
                 
-                // For home team selection, away team would be the loser  
-                const homeTeamStatus = getTeamStatusInfo(match.home_team, homeTeamUsage, homeTeamWinnerEliminated, homeTeamLoserEliminated, homeTeamUsedAsLoser);
+                // For home team selection (home team = WINNER, away team = LOSER)
+                const homeTeamStatus = getTeamStatusInfo(match.home_team, homeTeamUsage, homeTeamWinnerEliminated, homeTeamLoserEliminated, homeTeamUsedAsLoser, false);
                 const homeTeamOpposingStatus = getTeamStatusInfo(match.away_team, awayTeamUsage, awayTeamWinnerEliminated, awayTeamLoserEliminated, awayTeamUsedAsLoser, true);
                 
                 // Determine if teams can be selected

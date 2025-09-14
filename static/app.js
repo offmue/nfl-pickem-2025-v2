@@ -619,7 +619,9 @@ async function loadMatchesForWeek(week) {
                                  data-match-id="${match.id}"
                                  data-team-name="${match.away_team.name}"
                                  data-disabled="${awayTeamDisabled}"
-                                 ${awayTeamStatus.title || awayTeamOpposingStatus.title ? `title="${awayTeamStatus.title || awayTeamOpposingStatus.title}"` : ''}>
+                                 ${awayTeamEliminated ? `title="Dieses Team wurde bereits eliminiert"` : 
+                                   (awayTeamStatus.title ? `title="${awayTeamStatus.title}"` : 
+                                   (awayTeamOpposingStatus.title ? `title="${awayTeamOpposingStatus.title}"` : ''))}>
                                 <img src="${match.away_team.logo_url}" alt="${match.away_team.name}" class="match-team-logo team-logo-large">
                                 <div class="match-team-name">${match.away_team.name}</div>
                                 ${awayTeamUsedAsLoser ? '<div class="loser-indicator">L</div>' : ''}
@@ -637,7 +639,9 @@ async function loadMatchesForWeek(week) {
                                  data-match-id="${match.id}"
                                  data-team-name="${match.home_team.name}"
                                  data-disabled="${homeTeamDisabled}"
-                                 ${homeTeamStatus.title || homeTeamOpposingStatus.title ? `title="${homeTeamStatus.title || homeTeamOpposingStatus.title}"` : ''}>
+                                 ${homeTeamEliminated ? `title="Dieses Team wurde bereits eliminiert"` : 
+                                   (homeTeamStatus.title ? `title="${homeTeamStatus.title}"` : 
+                                   (homeTeamOpposingStatus.title ? `title="${homeTeamOpposingStatus.title}"` : ''))}>
                                 <img src="${match.home_team.logo_url}" alt="${match.home_team.name}" class="match-team-logo team-logo-large">
                                 <div class="match-team-name">${match.home_team.name}</div>
                                 ${homeTeamUsedAsLoser ? '<div class="loser-indicator">L</div>' : ''}
@@ -870,8 +874,18 @@ async function loadAllPicksData() {
         const hideCurrentPicks = document.getElementById('hide-current-picks').checked;
         const currentWeek = 2; // Current active week
         
-        // Sort weeks in ascending order (Week 1 first)
-        const weeks = Object.keys(matchesByWeek).sort((a, b) => a - b);
+        // Sort weeks: current week first, then ascending order
+        const weeks = Object.keys(matchesByWeek).sort((a, b) => {
+            const weekA = parseInt(a);
+            const weekB = parseInt(b);
+            
+            // Current week comes first
+            if (weekA === currentWeek && weekB !== currentWeek) return -1;
+            if (weekB === currentWeek && weekA !== currentWeek) return 1;
+            
+            // For all other weeks, sort ascending
+            return weekA - weekB;
+        });
         
         for (const week of weeks) {
             const weekNum = parseInt(week);

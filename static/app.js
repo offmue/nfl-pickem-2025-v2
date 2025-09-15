@@ -482,7 +482,7 @@ async function loadMatchesForWeek(week) {
         const hasWeekPick = picksData.picks.length > 0;
         const weekPickMatch = hasWeekPick ? picksData.picks[0].match : null;
         
-        // Get eliminated teams with type information
+        // Get eliminated teams
         const eliminatedResponse = await fetch(`${API_BASE}/api/picks/eliminated?user_id=${currentUser.id}`);
         
         if (!eliminatedResponse.ok) {
@@ -492,14 +492,7 @@ async function loadMatchesForWeek(week) {
         }
         
         const eliminatedData = await eliminatedResponse.json();
-        
-        // Separate eliminated teams by type
-        const winnerEliminatedTeamIds = eliminatedData.eliminated_teams
-            .filter(team => team.elimination_type === 'winner')
-            .map(team => team.id);
-        const loserEliminatedTeamIds = eliminatedData.eliminated_teams
-            .filter(team => team.elimination_type === 'loser')
-            .map(team => team.id);
+        const eliminatedTeamIds = eliminatedData.eliminated_teams.map(team => team.id);
         
         // Get team winner usage
         const teamUsageResponse = await fetch(`${API_BASE}/api/picks/team-usage?user_id=${currentUser.id}`);
@@ -571,11 +564,9 @@ async function loadMatchesForWeek(week) {
                 
                 const formattedDate = matchDate.toLocaleDateString('de-DE', dateOptions);
                 
-                // Check if teams are eliminated for specific types
-                const homeTeamWinnerEliminated = winnerEliminatedTeamIds.includes(match.home_team.id);
-                const awayTeamWinnerEliminated = winnerEliminatedTeamIds.includes(match.away_team.id);
-                const homeTeamLoserEliminated = loserEliminatedTeamIds.includes(match.home_team.id);
-                const awayTeamLoserEliminated = loserEliminatedTeamIds.includes(match.away_team.id);
+                // Check if teams are eliminated
+                const homeTeamEliminated = eliminatedTeamIds.includes(match.home_team.id);
+                const awayTeamEliminated = eliminatedTeamIds.includes(match.away_team.id);
                 
                 // NEW RULE: Check if teams have been used as losers
                 const homeTeamUsedAsLoser = loserUsageTeamIds.includes(match.home_team.id);
@@ -586,37 +577,31 @@ async function loadMatchesForWeek(week) {
                 const homeTeamUsage = teamUsageMap[match.home_team.id];
                 
                 // Determine team status classes and titles
-                const getTeamStatusInfo = (team, teamUsage, teamWinnerEliminated, teamLoserEliminated, teamUsedAsLoser, isOpposingTeam = false) => {
-                    // CORRECT LOGIC: Check if this team would be the LOSER and is loser-eliminated
-                    if (isOpposingTeam && teamLoserEliminated) {
-                        return { class: 'eliminated', title: 'Dieses Team kann nicht mehr als Verlierer gewählt werden (bereits 1x als Verlierer verwendet)', disabled: true };
+                const getTeamStatusInfo = (team, teamUsage, teamEliminated, teamUsedAsLoser, isOpposingTeam = false) => {
+                    if (teamEliminated) {
+                        return { class: 'eliminated', title: 'Dieses Team wurde bereits eliminiert', disabled: true };
                     }
-                    
-                    // CORRECT LOGIC: Check if this team would be the WINNER and is winner-eliminated (2x usage)
-                    if (!isOpposingTeam && teamWinnerEliminated) {
-                        return { class: 'eliminated', title: 'Dieses Team kann nicht mehr als Sieger gewählt werden (bereits 2x als Sieger verwendet)', disabled: true };
-                    }
-                    
-                    // Check usage count for winners (2x max)
-                    if (!isOpposingTeam && teamUsage && teamUsage.usage_count >= 2) {
+                    if (teamUsage && teamUsage.usage_count >= 2) {
                         return { class: 'max-used', title: 'Dieses Team wurde bereits 2x als Gewinner gewählt (Maximum erreicht)', disabled: true };
                     }
-                    
-                    // Show usage count for completed games
+                    // NEW RULE: If this team would be the loser (opposing team) and has been used as loser before
+                    if (isOpposingTeam && teamUsedAsLoser) {
+                        return { class: 'used-as-loser', title: 'Dieses Team wurde bereits als Verlierer getippt und kann nicht mehr als Verlierer gewählt werden', disabled: true };
+                    }
+                    // FIXED: Only show usage count for completed games
                     if (match.is_completed && teamUsage && teamUsage.usage_count === 1) {
                         return { class: 'used-once', title: 'Dieses Team wurde bereits 1x als Gewinner gewählt', disabled: false };
                     }
-                    
                     return { class: '', title: '', disabled: false };
                 };
                 
-                // For away team selection (away team = WINNER, home team = LOSER)
-                const awayTeamStatus = getTeamStatusInfo(match.away_team, awayTeamUsage, awayTeamWinnerEliminated, awayTeamLoserEliminated, awayTeamUsedAsLoser, false);
-                const awayTeamOpposingStatus = getTeamStatusInfo(match.home_team, homeTeamUsage, homeTeamWinnerEliminated, homeTeamLoserEliminated, homeTeamUsedAsLoser, true);
+                // For away team selection, home team would be the loser
+                const awayTeamStatus = getTeamStatusInfo(match.away_team, awayTeamUsage, awayTeamEliminated, awayTeamUsedAsLoser);
+                const awayTeamOpposingStatus = getTeamStatusInfo(match.home_team, homeTeamUsage, homeTeamEliminated, homeTeamUsedAsLoser, true);
                 
-                // For home team selection (home team = WINNER, away team = LOSER)
-                const homeTeamStatus = getTeamStatusInfo(match.home_team, homeTeamUsage, homeTeamWinnerEliminated, homeTeamLoserEliminated, homeTeamUsedAsLoser, false);
-                const homeTeamOpposingStatus = getTeamStatusInfo(match.away_team, awayTeamUsage, awayTeamWinnerEliminated, awayTeamLoserEliminated, awayTeamUsedAsLoser, true);
+                // For home team selection, away team would be the loser  
+                const homeTeamStatus = getTeamStatusInfo(match.home_team, homeTeamUsage, homeTeamEliminated, homeTeamUsedAsLoser);
+                const homeTeamOpposingStatus = getTeamStatusInfo(match.away_team, awayTeamUsage, awayTeamEliminated, awayTeamUsedAsLoser, true);
                 
                 // Determine if teams can be selected
                 const awayTeamDisabled = isMatchDisabled || awayTeamStatus.disabled || awayTeamOpposingStatus.disabled || isGameStarted;
@@ -634,10 +619,9 @@ async function loadMatchesForWeek(week) {
                                  data-match-id="${match.id}"
                                  data-team-name="${match.away_team.name}"
                                  data-disabled="${awayTeamDisabled}"
-                                 ${awayTeamWinnerEliminated ? `title="Dieses Team kann nicht mehr als Sieger gewählt werden (bereits 2x als Sieger verwendet)"` : 
-                                   (awayTeamLoserEliminated ? `title="Dieses Team kann nicht mehr als Verlierer gewählt werden (bereits 1x als Verlierer verwendet)"` :
+                                 ${awayTeamEliminated ? `title="Dieses Team wurde bereits eliminiert"` : 
                                    (awayTeamStatus.title ? `title="${awayTeamStatus.title}"` : 
-                                   (awayTeamOpposingStatus.title ? `title="${awayTeamOpposingStatus.title}"` : '')))}>
+                                   (awayTeamOpposingStatus.title ? `title="${awayTeamOpposingStatus.title}"` : ''))}>
                                 <img src="${match.away_team.logo_url}" alt="${match.away_team.name}" class="match-team-logo team-logo-large">
                                 <div class="match-team-name">${match.away_team.name}</div>
                                 ${awayTeamUsedAsLoser ? '<div class="loser-indicator">L</div>' : ''}
@@ -655,10 +639,9 @@ async function loadMatchesForWeek(week) {
                                  data-match-id="${match.id}"
                                  data-team-name="${match.home_team.name}"
                                  data-disabled="${homeTeamDisabled}"
-                                 ${homeTeamWinnerEliminated ? `title="Dieses Team kann nicht mehr als Sieger gewählt werden (bereits 2x als Sieger verwendet)"` : 
-                                   (homeTeamLoserEliminated ? `title="Dieses Team kann nicht mehr als Verlierer gewählt werden (bereits 1x als Verlierer verwendet)"` :
+                                 ${homeTeamEliminated ? `title="Dieses Team wurde bereits eliminiert"` : 
                                    (homeTeamStatus.title ? `title="${homeTeamStatus.title}"` : 
-                                   (homeTeamOpposingStatus.title ? `title="${homeTeamOpposingStatus.title}"` : '')))}>
+                                   (homeTeamOpposingStatus.title ? `title="${homeTeamOpposingStatus.title}"` : ''))}>
                                 <img src="${match.home_team.logo_url}" alt="${match.home_team.name}" class="match-team-logo team-logo-large">
                                 <div class="match-team-name">${match.home_team.name}</div>
                                 ${homeTeamUsedAsLoser ? '<div class="loser-indicator">L</div>' : ''}

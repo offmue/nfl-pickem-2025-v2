@@ -14,18 +14,12 @@ import time
 import schedule
 import threading
 
-# Configure logging with relative paths for Render compatibility
-import os
-
-# Get the current directory (works on both local and Render)
-current_dir = os.path.dirname(os.path.abspath(__file__))
-log_file = os.path.join(current_dir, 'game_validator.log')
-
+# Configure logging
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler(log_file),
+        logging.FileHandler('/home/ubuntu/nfl-pickem-final-corrected/game_validator.log'),
         logging.StreamHandler()
     ]
 )
@@ -34,11 +28,7 @@ logger = logging.getLogger(__name__)
 class NFLGameValidator:
     """Validates NFL game results and updates the database"""
     
-    def __init__(self, db_path: str = None):
-        # Use relative path for Render compatibility
-        if db_path is None:
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            db_path = os.path.join(current_dir, 'instance', 'nfl_pickem.db')
+    def __init__(self, db_path: str = '/home/ubuntu/nfl-pickem-final-corrected/instance/nfl_pickem.db'):
         self.db_path = db_path
         self.espn_base_url = "https://site.api.espn.com/apis/site/v2/sports/football/nfl"
         
@@ -458,9 +448,7 @@ if __name__ == "__main__":
         try:
             # Import the schedule update functionality
             import sys
-            # Use relative path for Render compatibility
-            current_dir = os.path.dirname(os.path.abspath(__file__))
-            sys.path.insert(0, current_dir)
+            sys.path.insert(0, '/home/ubuntu/nfl-pickem-final-corrected')
             from app import app, db, Match, Team
             
             with app.app_context():

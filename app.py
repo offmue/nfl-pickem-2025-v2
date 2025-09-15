@@ -926,11 +926,6 @@ def serve_static(path):
 with app.app_context():
     db.create_all()
 
-# Register Database Sync API
-from database_sync_api import register_database_sync_api
-register_database_sync_api(app)
-logger.info("Database Sync API registered successfully")
-
 # Start validation service
 try:
     from game_validator import start_validation_service_thread
